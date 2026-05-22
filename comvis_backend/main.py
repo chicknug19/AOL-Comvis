@@ -1,32 +1,46 @@
 import cv2
 import dlib
-from flask import Flask, Response
+import base64
+import numpy as np
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 from fatigue_detector import FatigueDetector
 
-# Membuat aplikasi server Flask
 app = Flask(__name__)
-CORS(app) # Sangat penting: agar React diizinkan mengambil video dari Python
+CORS(app) # Mengizinkan React mengakses API ini
 
-# Inisialisasi logika dan dlib
-detector_logic = FatigueDetector(ear_threshold=0.25, consecutive_frames=30)
+# Inisialisasi logika dan model
+# (consecutive_frames dikurangi jadi 5 karena pengiriman via API web lebih lambat dari streaming lokal)
+detector_logic = FatigueDetector(ear_threshold=0.25, consecutive_frames=5)
 face_detector = dlib.get_frontal_face_detector()
 landmark_predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
-# Index titik mata dari dlib
 (lStart, lEnd) = (42, 48)
 (rStart, rEnd) = (36, 42)
 
-def generate_frames():
-    cap = cv2.VideoCapture(0)
-    while True:
-        success, frame = cap.read()
-        if not success:
-            break
+# Jalur ini harus sama persis dengan yang ada di React (HF_API_URL)
+@app.route('/api/predict', methods=['POST'])
+def predict():
+    try:
+        data = request.json
+        if 'image' not in data:
+            return jsonify({"error": "Tidak ada gambar yang diterima"}), 400
+
+        # 1. Menerima gambar base64 dari React dan mengubahnya menjadi format OpenCV
+        img_data = data['image'].split(',')[1]
+        img_bytes = base64.b64decode(img_data)
+        np_arr = np.frombuffer(img_bytes, np.uint8)
+        frame = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         
-        # Preprocessing
+        # 2. Proses Deteksi (Sama seperti sebelumnya)
         gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         faces = face_detector(gray_frame, 0)
+
+        status = "Aman (Alert)"
+        ear_value = 0.0
+
+        if len(faces) == 0:
+            return jsonify({"ear": 0.0, "status": "Wajah tidak terdeteksi"})
 
         for face in faces:
             shape = landmark_predictor(gray_frame, face)
@@ -35,32 +49,20 @@ def generate_frames():
             leftEye = landmarks[lStart:lEnd]
             rightEye = landmarks[rStart:rEnd]
 
-            # Cek status ngantuk
-            ear, alarm_status = detector_logic.check_drowsiness(leftEye, rightEye)
-
-            # Gambar visualisasi di atas frame
-            for (x, y) in leftEye + rightEye:
-                cv2.circle(frame, (x, y), 2, (0, 255, 0), -1)
-
-            cv2.putText(frame, f"EAR: {ear:.2f}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+            ear_value, alarm_status = detector_logic.check_drowsiness(leftEye, rightEye)
 
             if alarm_status:
-                cv2.putText(frame, "WARNING: DROWSY!", (10, 80), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (0, 0, 255), 3)
+                status = "WARNING: DROWSY! (Ngantuk)"
 
-        # BAGIAN PALING PENTING UNTUK WEB:
-        # Mengubah frame gambar menjadi format byte JPEG untuk dikirim ke React
-        ret, buffer = cv2.imencode('.jpg', frame)
-        frame = buffer.tobytes()
+        # 3. Mengembalikan nilai EAR dan Status ke React
+        return jsonify({
+            "ear": float(ear_value), 
+            "status": status
+        })
 
-        # Memancarkan (streaming) gambar ke URL
-        yield (b'--frame\r\n'
-               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
-
-# Membuat jalur (URL) untuk diambil oleh React
-@app.route('/video_feed')
-def video_feed():
-    # Mengembalikan hasil streaming tanpa henti
-    return Response(generate_frames(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
+    # Port 7860 khusus untuk Hugging Face
     app.run(host='0.0.0.0', port=7860)
