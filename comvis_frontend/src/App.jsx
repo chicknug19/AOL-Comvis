@@ -12,7 +12,7 @@ const DrowsinessDetector = () => {
   const [isLoadingCam, setIsLoadingCam] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   // URL Backend Hugging Face
-  const HF_API_URL = "https://username-space-name.hf.space/api/predict"; 
+  const HF_API_URL = "https://chicknug19-aol-comvis.hf.space/api/predict"; 
   const captureAndSendFrame = useCallback(async () => {
     if (webcamRef.current && isDetecting && !isLoadingCam) {
       const imageSrc = webcamRef.current.getScreenshot();

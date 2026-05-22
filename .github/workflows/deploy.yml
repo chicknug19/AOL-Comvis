@@ -1,0 +1,32 @@
+name: Deploy Backend to Hugging Face
+
+# Robot ini akan jalan setiap kali kamu push ke branch 'main'
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'comvis_backend/**' # Hanya jalan jika ada perubahan di folder backend
+  workflow_dispatch:
+
+jobs:
+  deploy-to-hf:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Mengambil kode dari repository GitHub-mu
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      # 2. Mendorong HANYA folder comvis_backend ke Hugging Face
+      - name: Push to Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          cd comvis_backend
+          git init
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m "Auto Deploy Backend to Hugging Face"
+          # Mendorong kode paksa ke Space aol-comvis
+          git push --force https://chicknug19:${HF_TOKEN}@huggingface.co/spaces/chicknug19/aol-comvis master:main
