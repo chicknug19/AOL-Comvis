@@ -4,8 +4,8 @@ FROM python:3.12-slim
 # 2. Atur folder kerja di dalam server
 WORKDIR /app
 
-# 3. Install aplikasi sistem yang dibutuhkan C++ dan OpenCV
-RUN apt-get update && apt-get install -y \
+# 3. Install aplikasi sistem yang dibutuhkan C++ dan OpenCV beserta update keamanannya
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     build-essential \
     cmake \
     curl \
