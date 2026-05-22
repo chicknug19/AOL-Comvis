@@ -1,5 +1,5 @@
 # 1. Gunakan sistem operasi Python bawaan yang ringan
-FROM python:3.12-slim
+FROM python:3.10-slim
 
 # 2. Atur folder kerja di dalam server
 WORKDIR /app
