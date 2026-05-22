@@ -20,6 +20,10 @@ RUN curl -L -o shape_predictor_68_face_landmarks.dat.bz2 https://github.com/davi
 
 # 5. Install library Python dari requirements.txt
 COPY requirements.txt .
+
+# TRIK ANTI-OOM: Batasi proses kompilasi C++ agar hanya menggunakan 1 thread
+ENV CMAKE_BUILD_PARALLEL_LEVEL=1
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 6. Masukkan semua kodingan backend kamu ke server
