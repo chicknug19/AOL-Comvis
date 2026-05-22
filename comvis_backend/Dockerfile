@@ -15,7 +15,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # 4. TRIK RAHASIA: Download model dlib langsung dari internet saat build!
-RUN curl -L -o shape_predictor_68_face_landmarks.dat.bz2 http://dlib.net/files/shape_predictor_68_face_landmarks.dat.bz2 \
+RUN curl -L -o shape_predictor_68_face_landmarks.dat.bz2 https://github.com/davisking/dlib-models/raw/master/shape_predictor_68_face_landmarks.dat.bz2 \
     && bzip2 -d shape_predictor_68_face_landmarks.dat.bz2
 
 # 5. Install library Python dari requirements.txt
