@@ -2,9 +2,11 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import iconSafety from './assets/Iconsafety.png';
 import bgMorningRide from './assets/morningride.jpg';
+import alarmSound from './assets/alarm.mp3'; 
 
 const DrowsinessDetector = () => {
   const webcamRef = useRef(null);
+  const audioRef = useRef(typeof Audio !== "undefined" ? new Audio(alarmSound) : null);
   const [status, setStatus] = useState('Menunggu koneksi...');
   const [earValue, setEarValue] = useState(0.0);
   const [isDetecting, setIsDetecting] = useState(false);
@@ -47,6 +49,25 @@ const DrowsinessDetector = () => {
     }
     return () => clearInterval(interval);
   }, [isDetecting, isLoadingCam, captureAndSendFrame]);
+
+  useEffect(() => {
+    if (audioRef.current) {
+      // Supaya alarmnya bunyi terus berulang-ulang sampai dia bangun
+      audioRef.current.loop = true; 
+
+      const isDrowsy = status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk');
+      
+      if (isDrowsy) {
+        // Mainkan alarm jika terdeteksi ngantuk
+        audioRef.current.play().catch((err) => console.log("Audio diblokir browser:", err));
+      } else {
+        // Matikan alarm dan kembalikan ke detik 0 jika sudah aman
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+    }
+  }, [status]);
+  
   const getStatusColor = () => {
     if (status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk')) return '#ef4444';
     if (status.toLowerCase().includes('alert') || status.toLowerCase().includes('aman')) return '#22c55e';
