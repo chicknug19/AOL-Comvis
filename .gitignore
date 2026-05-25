@@ -7,3 +7,8 @@ comvis_frontend/node_modules/
 
 # Mengabaikan file model yang terlalu berat untuk Github
 comvis_backend/shape_predictor_68_face_landmarks.dat
+
+# Mengabaikan dataset video (WAJIB, karena terlalu berat untuk GitHub)
+dataset/
+*.mp4
+*.mov
