@@ -11,7 +11,7 @@ CORS(app) # Mengizinkan React mengakses API ini
 
 # Inisialisasi logika dan model
 # (consecutive_frames dikurangi jadi 5 karena pengiriman via API web lebih lambat dari streaming lokal)
-detector_logic = FatigueDetector(ear_threshold=0.25, consecutive_frames=5)
+detector_logic = FatigueDetector(ear_threshold=0.23, consecutive_frames=5)
 face_detector = dlib.get_frontal_face_detector()
 landmark_predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
 
