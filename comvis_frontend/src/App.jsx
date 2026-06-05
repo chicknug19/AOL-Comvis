@@ -189,7 +189,12 @@ const DrowsinessDetector = () => {
               audio={false}
               ref={webcamRef}
               screenshotFormat="image/jpeg"
-              videoConstraints={{ facingMode: "user" }}
+              screenshotQuality={0.5} // TURUNKAN KUALITAS: Kompresi gambar agar payload ringan
+              videoConstraints={{ 
+                 facingMode: "user",
+                 width: 640,  // PAKSA RESOLUSI KECIL: Jangan kirim gambar 1080p/4K ke API
+                 height: 480 
+              }}
               onUserMedia={() => setIsLoadingCam(false)}
               style={{ 
                 position: 'absolute',
