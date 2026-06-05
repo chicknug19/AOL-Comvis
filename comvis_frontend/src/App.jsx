@@ -10,13 +10,24 @@ const DrowsinessDetector = () => {
   const [status, setStatus] = useState('Menunggu koneksi...');
   const [earValue, setEarValue] = useState(0.0);
   const [isDetecting, setIsDetecting] = useState(false);
-  // State baru untuk interaksi UI
   const [isLoadingCam, setIsLoadingCam] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
+  const [processedImage, setProcessedImage] = useState(null);
+
+  // PENGAMAN BARU: Mencegah API terlambat merespon saat sistem sudah dimatikan
+  const isDetectingRef = useRef(false);
+
   // URL Backend Hugging Face
   const HF_API_URL = "https://chicknug19-aol-comvis.hf.space/api/predict"; 
+
+  // Selalu catat status terbaru tombol ke dalam pengaman
+  useEffect(() => {
+    isDetectingRef.current = isDetecting;
+  }, [isDetecting]);
+
   const captureAndSendFrame = useCallback(async () => {
-    if (webcamRef.current && isDetecting && !isLoadingCam) {
+    // Hanya memproses jika sistem benar-benar sedang berjalan
+    if (webcamRef.current && isDetectingRef.current && !isLoadingCam) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
         try {
@@ -27,24 +38,40 @@ const DrowsinessDetector = () => {
           });
           if (!response.ok) throw new Error('Jaringan bermasalah');
           const data = await response.json();
-          setEarValue(data.ear);
-          setStatus(data.status);
+          
+          // GERBANG KEAMANAN: Abaikan respon API jika user sudah menekan tombol Hentikan
+          if (isDetectingRef.current) {
+            setEarValue(data.ear);
+            setStatus(data.status);
+            if (data.image) {
+               setProcessedImage(data.image);
+            }
+          }
         } catch (error) {
           console.error("Gagal mengirim frame:", error);
-          setStatus("Error koneksi");
+          if (isDetectingRef.current) {
+            setStatus("Error koneksi API");
+          }
         }
       }
     }
-  }, [isDetecting, isLoadingCam]);
+  }, [isLoadingCam]);
+
   useEffect(() => {
     let interval;
     if (isDetecting && !isLoadingCam) {
-      interval = setInterval(captureAndSendFrame, 100);
+      interval = setInterval(captureAndSendFrame, 150); 
     } else {
       clearInterval(interval);
+      // PASTIKAN RESET BERSIH SAAT DIMATIKAN
       if (!isDetecting) {
         setStatus('Menunggu koneksi...');
         setEarValue(0.0);
+        setProcessedImage(null);
+        if (audioRef.current) {
+          audioRef.current.pause();
+          audioRef.current.currentTime = 0;
+        }
       }
     }
     return () => clearInterval(interval);
@@ -52,16 +79,14 @@ const DrowsinessDetector = () => {
 
   useEffect(() => {
     if (audioRef.current) {
-      // Supaya alarmnya bunyi terus berulang-ulang sampai dia bangun
       audioRef.current.loop = true; 
-
-      const isDrowsy = status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk');
       
-      if (isDrowsy) {
-        // Mainkan alarm jika terdeteksi ngantuk
+      const isDrowsy = status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk') || status.toLowerCase().includes('warning') || status.toLowerCase().includes('lelah');
+      
+      // Tambahkan isDetectingRef.current agar suara mutlak bungkam saat dimatikan
+      if (isDrowsy && isDetectingRef.current) {
         audioRef.current.play().catch((err) => console.log("Audio diblokir browser:", err));
       } else {
-        // Matikan alarm dan kembalikan ke detik 0 jika sudah aman
         audioRef.current.pause();
         audioRef.current.currentTime = 0;
       }
@@ -70,22 +95,36 @@ const DrowsinessDetector = () => {
   
   const getStatusColor = () => {
     if (status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk')) return '#ef4444';
+    if (status.toLowerCase().includes('warning') || status.toLowerCase().includes('lelah')) return '#eab308';
     if (status.toLowerCase().includes('alert') || status.toLowerCase().includes('aman')) return '#22c55e';
     return '#3b82f6'; 
   };
+  
   const statusColor = getStatusColor();
+  
   const handleToggleCamera = () => {
     if (!isDetecting) {
       setIsLoadingCam(true); 
+    } else {
+      // RESET MANUAL LANGSUNG DI SAAT KLIK
+      setStatus('Menunggu koneksi...');
+      setEarValue(0.0);
+      setProcessedImage(null);
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
     }
     setIsDetecting(!isDetecting);
   };
+
   const getButtonBgColor = () => {
     if (isDetecting) {
-      return isHovered ? '#dc2626' : '#ef4444'; // Merah gelap saat hover
+      return isHovered ? '#dc2626' : '#ef4444'; 
     }
-    return isHovered ? '#2563eb' : '#3b82f6'; // Biru gelap saat hover
+    return isHovered ? '#2563eb' : '#3b82f6'; 
   };
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -99,7 +138,6 @@ const DrowsinessDetector = () => {
       backgroundPosition: 'center',
       color: '#f8fafc'
     }}>   
-      {/* Container Utama */}
       <div style={{
         backgroundColor: 'rgba(30, 41, 59, 0.6)',
         backdropFilter: 'blur(12px)',
@@ -112,10 +150,8 @@ const DrowsinessDetector = () => {
         boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
       }}>
         
-        {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <img src={iconSafety} alt="Safety Icon" style={{ width: '80px', marginBottom: '10px' }} /> 
-          
           <h2 style={{ 
             margin: '0', 
             fontSize: '28px', 
@@ -128,11 +164,10 @@ const DrowsinessDetector = () => {
             Driver Drowsiness Detection System
           </h2>
           <p style={{ color: '#94a3b8', marginTop: '8px', fontSize: '14px' }}>
-            Real-time Eye Aspect Ratio (EAR) Analysis
+            Real-time EAR & Facial Landmarks Analysis
           </p>
         </div>
         
-        {/* Area Webcam */}
         <div style={{ 
           marginBottom: '25px', 
           position: 'relative',
@@ -147,37 +182,54 @@ const DrowsinessDetector = () => {
           alignItems: 'center',
           justifyContent: 'center'
         }}>
+          
+          {/* WEBCAM ASLI */}
           {isDetecting && (
             <Webcam
               audio={false}
               ref={webcamRef}
               screenshotFormat="image/jpeg"
-              width="100%"
               videoConstraints={{ facingMode: "user" }}
-              onUserMedia={() => setIsLoadingCam(false)} // Matikan loading saat kamera siap
+              onUserMedia={() => setIsLoadingCam(false)}
               style={{ 
+                position: 'absolute',
                 width: '100%', 
-                height: '100%', 
+                height: '100%',
                 objectFit: 'cover',
-                opacity: isLoadingCam ? 0.3 : 1,
-                transition: 'opacity 0.5s'
+                opacity: processedImage ? 0 : (isLoadingCam ? 0.3 : 1), 
+                transition: 'opacity 0.2s ease-in-out'
               }}
             />
-          )}     
+          )}
+
+          {/* GAMBAR DARI FLASK (Titik dan Garis Wajah) */}
+          {isDetecting && !isLoadingCam && processedImage && (
+             <img 
+               src={processedImage} 
+               alt="Processed Frame"
+               style={{
+                 position: 'absolute',
+                 width: '100%',
+                 height: '100%',
+                 objectFit: 'cover',
+                 zIndex: 10
+               }}
+             />
+          )}
+
           {!isDetecting && (
             <div style={{ position: 'absolute', color: '#64748b', fontSize: '18px', fontWeight: '500' }}>
               Kamera Nonaktif
             </div>
           )}
           {isLoadingCam && (
-            <div style={{ position: 'absolute', color: '#f8fafc', fontSize: '18px', fontWeight: '500' }}>
+            <div style={{ position: 'absolute', color: '#f8fafc', fontSize: '18px', fontWeight: '500', zIndex: 20 }}>
               Meminta izin akses kamera...
             </div>
           )}
         </div>
-        {/* Kontrol & Status */}
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', alignItems: 'center' }}>
-          {/* Tombol Mulai/Berhenti */}
           <button 
             onClick={handleToggleCamera}
             disabled={isLoadingCam}
@@ -202,7 +254,7 @@ const DrowsinessDetector = () => {
           >
             {isLoadingCam ? '⏳ Memuat Kamera...' : (isDetecting ? '⏹ Hentikan Sistem' : '▶ Aktifkan Kamera')}
           </button>
-          {/* Panel Indikator Status */}
+          
           <div style={{ 
             padding: '15px 20px', 
             backgroundColor: 'rgba(15, 23, 42, 0.8)', 
@@ -223,7 +275,6 @@ const DrowsinessDetector = () => {
               </strong>
             </div>
           </div>
-
         </div>
       </div>
     </div>
