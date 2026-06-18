@@ -2,31 +2,33 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import iconSafety from './assets/Iconsafety.png';
 import bgMorningRide from './assets/morningride.jpg';
-import alarmSound from './assets/alarm.mp3'; 
 
-const DrowsinessDetector = () => {
+import alarmSound from './assets/drowsy.mpeg'; 
+import warningSound from './assets/warning.mpeg';
+
+const App = () => {
   const webcamRef = useRef(null);
-  const audioRef = useRef(typeof Audio !== "undefined" ? new Audio(alarmSound) : null);
+  
+  const drowsyAudioRef = useRef(typeof Audio !== "undefined" ? new Audio(alarmSound) : null);
+  const warningAudioRef = useRef(typeof Audio !== "undefined" ? new Audio(warningSound) : null);
+  
   const [status, setStatus] = useState('Menunggu koneksi...');
   const [earValue, setEarValue] = useState(0.0);
+  const [marValue, setMarValue] = useState(0.0); 
   const [isDetecting, setIsDetecting] = useState(false);
   const [isLoadingCam, setIsLoadingCam] = useState(false);
   const [isHovered, setIsHovered] = useState(false);
   const [processedImage, setProcessedImage] = useState(null);
 
-  // PENGAMAN BARU: Mencegah API terlambat merespon saat sistem sudah dimatikan
   const isDetectingRef = useRef(false);
+  // const HF_API_URL = "https://chicknug19-aol-comvis.hf.space/api/predict"; 
+  const HF_API_URL = "http://127.0.0.1:7860/api/predict";
 
-  // URL Backend Hugging Face
-  const HF_API_URL = "https://chicknug19-aol-comvis.hf.space/api/predict"; 
-
-  // Selalu catat status terbaru tombol ke dalam pengaman
   useEffect(() => {
     isDetectingRef.current = isDetecting;
   }, [isDetecting]);
 
   const captureAndSendFrame = useCallback(async () => {
-    // Hanya memproses jika sistem benar-benar sedang berjalan
     if (webcamRef.current && isDetectingRef.current && !isLoadingCam) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
@@ -36,22 +38,21 @@ const DrowsinessDetector = () => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ image: imageSrc }),
           });
+          
           if (!response.ok) throw new Error('Jaringan bermasalah');
           const data = await response.json();
           
-          // GERBANG KEAMANAN: Abaikan respon API jika user sudah menekan tombol Hentikan
           if (isDetectingRef.current) {
-            setEarValue(data.ear);
-            setStatus(data.status);
+            if (data.ear !== undefined) setEarValue(data.ear);
+            if (data.mar !== undefined) setMarValue(data.mar); 
+            if (data.status) setStatus(data.status);
+            
             if (data.image) {
                setProcessedImage(data.image);
             }
           }
         } catch (error) {
-          console.error("Gagal mengirim frame:", error);
-          if (isDetectingRef.current) {
-            setStatus("Error koneksi API");
-          }
+          console.warn("Frame tertunda/drop..."); 
         }
       }
     }
@@ -63,32 +64,49 @@ const DrowsinessDetector = () => {
       interval = setInterval(captureAndSendFrame, 150); 
     } else {
       clearInterval(interval);
-      // PASTIKAN RESET BERSIH SAAT DIMATIKAN
       if (!isDetecting) {
         setStatus('Menunggu koneksi...');
         setEarValue(0.0);
+        setMarValue(0.0);
         setProcessedImage(null);
-        if (audioRef.current) {
-          audioRef.current.pause();
-          audioRef.current.currentTime = 0;
+        
+        if (drowsyAudioRef.current) {
+          drowsyAudioRef.current.pause();
+          drowsyAudioRef.current.currentTime = 0;
+        }
+        if (warningAudioRef.current) {
+          warningAudioRef.current.pause();
+          warningAudioRef.current.currentTime = 0;
         }
       }
     }
     return () => clearInterval(interval);
   }, [isDetecting, isLoadingCam, captureAndSendFrame]);
 
+  // 4. LOGIKA PEMUTARAN AUDIO BERDASARKAN STATUS
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.loop = true; 
+    if (drowsyAudioRef.current && warningAudioRef.current) {
+      drowsyAudioRef.current.loop = true; 
+      warningAudioRef.current.loop = true; 
       
-      const isDrowsy = status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk') || status.toLowerCase().includes('warning') || status.toLowerCase().includes('lelah');
+      const isDrowsy = status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk');
+      const isWarning = status.toLowerCase().includes('warning') || status.toLowerCase().includes('lelah');
       
-      // Tambahkan isDetectingRef.current agar suara mutlak bungkam saat dimatikan
       if (isDrowsy && isDetectingRef.current) {
-        audioRef.current.play().catch((err) => console.log("Audio diblokir browser:", err));
+        warningAudioRef.current.pause();
+        warningAudioRef.current.currentTime = 0;
+        drowsyAudioRef.current.play().catch((err) => console.log("Audio diblokir browser:", err));
+        
+      } else if (isWarning && isDetectingRef.current) {
+        drowsyAudioRef.current.pause();
+        drowsyAudioRef.current.currentTime = 0;
+        warningAudioRef.current.play().catch((err) => console.log("Audio diblokir browser:", err));
+        
       } else {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+        drowsyAudioRef.current.pause();
+        drowsyAudioRef.current.currentTime = 0;
+        warningAudioRef.current.pause();
+        warningAudioRef.current.currentTime = 0;
       }
     }
   }, [status]);
@@ -106,13 +124,18 @@ const DrowsinessDetector = () => {
     if (!isDetecting) {
       setIsLoadingCam(true); 
     } else {
-      // RESET MANUAL LANGSUNG DI SAAT KLIK
       setStatus('Menunggu koneksi...');
       setEarValue(0.0);
+      setMarValue(0.0);
       setProcessedImage(null);
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.currentTime = 0;
+      
+      if (drowsyAudioRef.current) {
+        drowsyAudioRef.current.pause();
+        drowsyAudioRef.current.currentTime = 0;
+      }
+      if (warningAudioRef.current) {
+        warningAudioRef.current.pause();
+        warningAudioRef.current.currentTime = 0;
       }
     }
     setIsDetecting(!isDetecting);
@@ -164,7 +187,7 @@ const DrowsinessDetector = () => {
             Driver Drowsiness Detection System
           </h2>
           <p style={{ color: '#94a3b8', marginTop: '8px', fontSize: '14px' }}>
-            Real-time EAR & Facial Landmarks Analysis
+            Real-time EAR & MAR Facial Landmarks Analysis
           </p>
         </div>
         
@@ -183,17 +206,16 @@ const DrowsinessDetector = () => {
           justifyContent: 'center'
         }}>
           
-          {/* WEBCAM ASLI */}
           {isDetecting && (
             <Webcam
               audio={false}
               ref={webcamRef}
               screenshotFormat="image/jpeg"
-              screenshotQuality={0.5} // TURUNKAN KUALITAS: Kompresi gambar agar payload ringan
+              screenshotQuality={0.9} 
               videoConstraints={{ 
                  facingMode: "user",
-                 width: 640,  // PAKSA RESOLUSI KECIL: Jangan kirim gambar 1080p/4K ke API
-                 height: 480 
+                 width: 1280,  
+                 height: 720 
               }}
               onUserMedia={() => setIsLoadingCam(false)}
               style={{ 
@@ -207,7 +229,6 @@ const DrowsinessDetector = () => {
             />
           )}
 
-          {/* GAMBAR DARI FLASK (Titik dan Garis Wajah) */}
           {isDetecting && !isLoadingCam && processedImage && (
              <img 
                src={processedImage} 
@@ -273,11 +294,20 @@ const DrowsinessDetector = () => {
             <p style={{ margin: '0 0 10px 0', fontSize: '22px', fontWeight: 'bold', color: statusColor, transition: 'color 0.3s ease' }}>
               {status}
             </p>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
-              <span style={{ fontSize: '13px', color: '#cbd5e1' }}>Nilai EAR Terkini:</span>
-              <strong style={{ fontSize: '18px', color: '#f8fafc', fontFamily: 'monospace' }}>
-                {earValue.toFixed(3)}
-              </strong>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '5px', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#cbd5e1' }}>Mata (EAR):</span>
+                <strong style={{ fontSize: '16px', color: '#f8fafc', fontFamily: 'monospace' }}>
+                  {earValue.toFixed(3)}
+                </strong>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#cbd5e1' }}>Mulut (MAR):</span>
+                <strong style={{ fontSize: '16px', color: '#f8fafc', fontFamily: 'monospace' }}>
+                  {marValue.toFixed(3)}
+                </strong>
+              </div>
             </div>
           </div>
         </div>
@@ -285,4 +315,4 @@ const DrowsinessDetector = () => {
     </div>
   );
 };
-export default DrowsinessDetector;
+export default App;
