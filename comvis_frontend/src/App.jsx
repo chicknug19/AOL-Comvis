@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import iconSafety from './assets/Iconsafety.png';
 import bgMorningRide from './assets/morningride.jpg';
-import alarmSound from './assets/drowsy.mpeg'; 
+import alarmSound from './assets/drowsy1.mp3'; 
 
 const DrowsinessDetector = () => {
   const webcamRef = useRef(null);
