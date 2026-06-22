@@ -4,7 +4,7 @@ import iconSafety from './assets/Iconsafety.png';
 import bgMorningRide from './assets/morningride.jpg';
 
 import alarmSound from './assets/drowsy.mpeg'; 
-import warningSound from './assets/warning.mpeg';
+import warningSound from './assets/warning1.mp3';
 
 const App = () => {
   const webcamRef = useRef(null);
