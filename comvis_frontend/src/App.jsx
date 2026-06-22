@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import iconSafety from './assets/Iconsafety.png';
 import bgMorningRide from './assets/morningride.jpg';
-import alarmSound from './assets/alarm.mp3'; 
+import alarmSound from './assets/drowsy.mpeg'; 
 
 const DrowsinessDetector = () => {
   const webcamRef = useRef(null);
@@ -14,19 +14,15 @@ const DrowsinessDetector = () => {
   const [isHovered, setIsHovered] = useState(false);
   const [processedImage, setProcessedImage] = useState(null);
 
-  // PENGAMAN BARU: Mencegah API terlambat merespon saat sistem sudah dimatikan
   const isDetectingRef = useRef(false);
 
-  // URL Backend Hugging Face
   const HF_API_URL = "https://chicknug19-aol-comvis.hf.space/api/predict"; 
 
-  // Selalu catat status terbaru tombol ke dalam pengaman
   useEffect(() => {
     isDetectingRef.current = isDetecting;
   }, [isDetecting]);
 
   const captureAndSendFrame = useCallback(async () => {
-    // Hanya memproses jika sistem benar-benar sedang berjalan
     if (webcamRef.current && isDetectingRef.current && !isLoadingCam) {
       const imageSrc = webcamRef.current.getScreenshot();
       if (imageSrc) {
@@ -39,7 +35,6 @@ const DrowsinessDetector = () => {
           if (!response.ok) throw new Error('Jaringan bermasalah');
           const data = await response.json();
           
-          // GERBANG KEAMANAN: Abaikan respon API jika user sudah menekan tombol Hentikan
           if (isDetectingRef.current) {
             setEarValue(data.ear);
             setStatus(data.status);
@@ -63,7 +58,6 @@ const DrowsinessDetector = () => {
       interval = setInterval(captureAndSendFrame, 150); 
     } else {
       clearInterval(interval);
-      // PASTIKAN RESET BERSIH SAAT DIMATIKAN
       if (!isDetecting) {
         setStatus('Menunggu koneksi...');
         setEarValue(0.0);
@@ -83,7 +77,6 @@ const DrowsinessDetector = () => {
       
       const isDrowsy = status.toLowerCase().includes('drowsy') || status.toLowerCase().includes('ngantuk') || status.toLowerCase().includes('warning') || status.toLowerCase().includes('lelah');
       
-      // Tambahkan isDetectingRef.current agar suara mutlak bungkam saat dimatikan
       if (isDrowsy && isDetectingRef.current) {
         audioRef.current.play().catch((err) => console.log("Audio diblokir browser:", err));
       } else {
@@ -106,7 +99,6 @@ const DrowsinessDetector = () => {
     if (!isDetecting) {
       setIsLoadingCam(true); 
     } else {
-      // RESET MANUAL LANGSUNG DI SAAT KLIK
       setStatus('Menunggu koneksi...');
       setEarValue(0.0);
       setProcessedImage(null);
@@ -189,10 +181,10 @@ const DrowsinessDetector = () => {
               audio={false}
               ref={webcamRef}
               screenshotFormat="image/jpeg"
-              screenshotQuality={0.5} // TURUNKAN KUALITAS: Kompresi gambar agar payload ringan
+              screenshotQuality={0.5}
               videoConstraints={{ 
                  facingMode: "user",
-                 width: 640,  // PAKSA RESOLUSI KECIL: Jangan kirim gambar 1080p/4K ke API
+                 width: 640,
                  height: 480 
               }}
               onUserMedia={() => setIsLoadingCam(false)}
